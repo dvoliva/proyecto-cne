@@ -11,6 +11,7 @@ def obtener_token():
     Se conecta al endpoint de login https://api.cne.cl/api/login
     y obtiene el token de acceso.
     """
+    #obtener las credenciales del entorno
     email = os.getenv('CNE_API_EMAIL')
     password = os.getenv('CNE_API_PASSWORD')
 
@@ -21,12 +22,13 @@ def obtener_token():
     }
 
     try:
+        # Realizar la solicitud POST al endpoint de login
         response = requests.post(login_url, json = data, timeout=10)
         #lanza un error si la respuesta no es 200 (éxito)
         response.raise_for_status()
 
         #extraer el token de la respuesta
-        token = response.json().get('token')
+        token = response.json().get('token') #obtener el valor de la clave 'token'
         print("token obtenido")
         return token
     
@@ -56,8 +58,10 @@ def obtener_estaciones(token: str):
         #lanza un error si la respuesta no es 200 (éxito)
         response.raise_for_status()
 
-        datos = response.json()
-        # Verificar si es una lista directamente o un diccionario con 'data'
+        #extraer los datos de la respuesta
+        datos = response.json() 
+
+        # Verificar si la respuesta es una lista o un diccionario
         if isinstance(datos, list):
             print(f"se encontraron {len(datos)} estaciones de servicio")
             return datos

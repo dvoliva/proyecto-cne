@@ -1,6 +1,9 @@
 certifi==2025.7.14
 charset-normalizer==3.4.2
+greenlet==3.2.3
 idna==3.10
 python-dotenv==1.1.1
 requests==2.32.4
+SQLAlchemy==2.0.42
+typing_extensions==4.14.1
 urllib3==2.5.0
