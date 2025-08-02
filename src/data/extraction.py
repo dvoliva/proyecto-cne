@@ -1,11 +1,14 @@
 
 import os
+import sys
 import requests
 from dotenv import load_dotenv
 from datetime import datetime
 
 from sqlalchemy.orm import sessionmaker
-from modelos import Estacion, Precio, engine, crear_base_datos
+from .modelos import Estacion, Precio, engine, crear_base_datos
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 load_dotenv() #carga las variables de entorno
@@ -193,19 +196,3 @@ if __name__ == "__main__":
 
     #4 procesar y guardar los datos de las estaciones
     procesar_y_guardar_datos(lista_estaciones)
-    #3 mostrar datos de ejemplo
-        # if datos_estaciones:
-        #     # Manejar tanto lista directa como diccionario con 'data'
-        #     estaciones = datos_estaciones if isinstance(datos_estaciones, list) else datos_estaciones.get('data', [])
-            
-        #     if len(estaciones) > 0:
-        #         print("\n--- Ejemplo de una estación ---")
-        #         primera_estacion = estaciones[0]
-        #         # Usar las claves correctas según la estructura real
-        #         print(f"Código: {primera_estacion.get('codigo')}")
-        #         print(f"Razón Social: {primera_estacion.get('razon_social')}")
-        #         print(f"Distribuidor: {primera_estacion.get('distribuidor', {}).get('marca')}")
-        #         print(f"Dirección: {primera_estacion.get('ubicacion', {}).get('direccion')}")
-        #         print(f"Comuna: {primera_estacion.get('ubicacion', {}).get('nombre_comuna')}")
-        #         print(f"Región: {primera_estacion.get('ubicacion', {}).get('nombre_region')}")
-        #         print("-----------------------------\n")
