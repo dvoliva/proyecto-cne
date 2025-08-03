@@ -1,0 +1,21 @@
+name: Mi Primer Workflow CI
+
+#definir evento que activa el workflow
+on:
+  push:
+    branches: ["main","master"]
+  
+jobs:
+  build-docker-image:
+    #la máquina virtual donde se ejecuta el job
+    runs-on: ubuntu-latest
+
+    steps:
+    #paso1: descargar el repo
+    - name: checkout repo
+      uses: actions/checkout@v2
+
+    #paso2: construir la imagen de docker
+    - name: build docker image
+      run: |
+        docker build -t api-cne .

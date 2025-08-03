@@ -1,0 +1,32 @@
+
+name : Actualización mensual de datos del combustible
+
+on:
+  workflow_dispatch: # Permite ejecutar manualmente el flujo de trabajo
+  schedule:
+    - cron: 0 19 05 * * # Ejecuta el flujo de trabajo el 5 de cada mes a las 19:00 UTC
+  
+jobs:
+  run-extraction-script:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.12' # Especifica la versión de Python a usar
+
+      - name: Install dependencies
+        run: |
+          pip Install -r requirements.txt
+
+      - name: Run extraction script
+        env:
+          CNE_API_EMAIL: ${{ secrets.CNE_API_EMAIL }}
+          CNE_API_PASSWORD: ${{ secrets.CNE_API_PASSWORD }}
+        run: |
+          python src/data/extraction.py 
+    
