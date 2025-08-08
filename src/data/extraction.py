@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 
 from sqlalchemy.orm import sessionmaker
-from .modelos import Estacion, Precio, engine, crear_base_datos
+from modelos import Estacion, Precio, engine, crear_base_datos
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

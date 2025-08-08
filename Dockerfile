@@ -16,7 +16,6 @@ COPY ./src /app/src
 # COPY .env /app/
 # COPY database.db /app/  
 
-
 #expongo el puerto 8000 para ejecutar la aplicación
 EXPOSE 8000
 

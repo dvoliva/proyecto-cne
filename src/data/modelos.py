@@ -9,14 +9,25 @@ from sqlalchemy import (create_engine, Column, Integer, String,
 from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
+from dotenv import load_dotenv
 
-# Configuración de la base de datos
 
-#define la ubicación de la base de datos
-DATABASE_URL = "sqlite:///./database.db"
+#conectarse a la base de datos en Azure
+load_dotenv()
+
+DB_SERVER = os.getenv("DB_SERVER")
+DB_DATABASE = os.getenv("DB_DATABASE")
+DB_USERNAME = os.getenv("DB_USERNAME")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DRIVER = "{ODBC Driver 18 for SQL Server}"
+
+#cadena de conexión para SQL Server
+DATABASE_URL = f"mssql+pyodbc://{DB_USERNAME}:{DB_PASSWORD}@{DB_SERVER}:1433/{DB_DATABASE}?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
+
+
 
 #el motor que se usará para conectarse a la base de datos
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+engine = create_engine(DATABASE_URL, echo=True)
 
 #base declarativa que se usará para definir los modelos
 Base = declarative_base()
