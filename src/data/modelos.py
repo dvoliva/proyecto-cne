@@ -5,7 +5,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 from sqlalchemy import (create_engine, Column, Integer, String,
-                        Float, DateTime, ForeignKey)
+                        Float, DateTime, ForeignKey, Identity)
 from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
@@ -27,7 +27,7 @@ DRIVER = "{ODBC Driver 18 for SQL Server}"
 # LÍNEA CORRECTA Y FINAL
 DATABASE_URL = f"mssql+pyodbc://{DB_USERNAME}:{DB_PASSWORD}@{DB_SERVER}:1433/{DB_DATABASE}?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
 #el motor que se usará para conectarse a la base de datos
-engine = create_engine(DATABASE_URL, echo=True)
+engine = create_engine(DATABASE_URL)
 
 #base declarativa que se usará para definir los modelos
 Base = declarative_base()
@@ -43,12 +43,12 @@ class Estacion(Base):
 
     #columnas de la tabla
     # Columnas de la tabla
-    codigo = Column(String, primary_key=True, index=True) # Usamos el código de la CNE como ID
+    codigo = Column(String(50), primary_key=True, index=True) # Usamos el código de la CNE como ID
     razon_social = Column(String)
-    marca = Column(String, index=True)
+    marca = Column(String(150), index=True)
     direccion = Column(String)
-    comuna = Column(String, index=True)
-    region = Column(String, index=True)
+    comuna = Column(String(150), index=True)
+    region = Column(String(150), index=True)
     latitud = Column(Float)
     longitud = Column(Float)
 
@@ -68,13 +68,13 @@ class Precio(Base):
     """
     __tablename__ = "precios"
 
-    id = Column(Integer, primary_key=True, index=True) # ID propio autoincremental
-    tipo_combustible = Column(String, index=True)
+    id = Column(Integer, Identity(start=1, increment=1), primary_key=True) # ID propio autoincremental
+    tipo_combustible = Column(String(150), index=True)
     precio_valor = Column(Integer)
     fecha_actualizacion = Column(DateTime)
     
     # Clave Foránea: Vincula este precio a una estación específica.
-    estacion_codigo = Column(String, ForeignKey("estaciones.codigo"))
+    estacion_codigo = Column(String(50), ForeignKey("estaciones.codigo"))
     
     # Relación inversa: Permite acceder al objeto Estacion desde un objeto Precio.
     estacion = relationship("Estacion", back_populates="precios")
