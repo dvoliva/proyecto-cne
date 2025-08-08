@@ -22,10 +22,10 @@ DB_PASSWORD = os.getenv("DB_PASSWORD")
 DRIVER = "{ODBC Driver 18 for SQL Server}"
 
 #cadena de conexión para SQL Server
+# LÍNEA RECOMENDADA
+# TU LÍNEA ACTUAL
+# LÍNEA CORRECTA Y FINAL
 DATABASE_URL = f"mssql+pyodbc://{DB_USERNAME}:{DB_PASSWORD}@{DB_SERVER}:1433/{DB_DATABASE}?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
-
-
-
 #el motor que se usará para conectarse a la base de datos
 engine = create_engine(DATABASE_URL, echo=True)
 

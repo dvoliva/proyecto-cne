@@ -3,3 +3,4 @@
 __pycache__/
 claves_api_cne.txt
 *.db
+.github/
