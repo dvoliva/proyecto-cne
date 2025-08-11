@@ -1,23 +1,46 @@
 import sys
 import os
 from datetime import datetime
-
-# Asegurarse de que el directorio src esté en el path para importar los módulos correctamente
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from dotenv import load_dotenv
 
 from fastapi import FastAPI, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy import create_engine
 from typing import List
-
-#importando el trabajo previo
-from src.data.modelos import Estacion, Precio
-from src.data.extraction import SessionLocal
 from pydantic import BaseModel
 
-# Definición de los modelos de respuesta utilizando Pydantic
+# --- 1. CONFIGURACIÓN CENTRALIZADA DE LA BASE DE DATOS ---
+# Cargar variables de entorno desde el archivo .env (para desarrollo local)
+load_dotenv()
+
+# Leer las credenciales de la base de datos desde el entorno
+DB_SERVER = os.getenv("DB_SERVER")
+DB_DATABASE = os.getenv("DB_DATABASE")
+DB_USERNAME = os.getenv("DB_USERNAME")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+
+# construir la URL de conexión para Azure SQL
+#si alguna de las variables de entorno no existe, esto fallará.
+DATABASE_URL = (
+    f"mssql+pyodbc://{DB_USERNAME}:{DB_PASSWORD}@{DB_SERVER}:1433/{DB_DATABASE}"
+    "?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
+)
+
+# Crear el motor de SQLAlchemy
+engine = create_engine(DATABASE_URL)
+
+# Crear una fábrica de sesiones que usaremos para comunicarnos con la BD
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# Importamos los modelos de la base de datos.
+# Este truco asegura que Python encuentre la carpeta 'src'
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src.data.modelos import Estacion, Precio
+
+# --- 2. MODELOS DE RESPUESTA (PYDANTIC) ---
 class PrecioRespuesta(BaseModel):
     tipo_combustible: str
-    precio_valor: float
+    precio_valor: int
     fecha_actualizacion: datetime
 
     class Config:
@@ -42,62 +65,57 @@ class EstacionCompletoRespuesta(EstacionBasicoRespuesta):
     class Config:
         orm_mode = True
 
-
-#crear la aplicación FastAPI
+# --- 3. CREACIÓN DE LA APLICACIÓN Y DEPENDENCIAS ---
 app = FastAPI(
-    title="API de Precios del Combustible en Chile",
-    description="API para consultar precios de combustibles en estaciones de servicio en Chile.",
-    version="1.0.0",
+    title="API de Precios de Combustibles en Chile",
+    description="Consulta datos de estaciones de servicio y precios de combustibles en Chile.",
+    version="1.0.0"
 )
 
-#dependencia para obtener la sesión de la base de datos
+# Esta es la "llave mágica" que le pasamos a cada endpoint
+# para que pueda hablar con la base de datos.
 def get_db():
-    """
-    Dependencia para obtener una sesión de base de datos.
-    Cierra la sesión al finalizar la petición.
-    """
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
 
-#primer endpoint: pagina de inicio
+# --- 4. ENDPOINTS DE LA API ---
+# (El código de los endpoints no cambia, pero ahora usarán la nueva conexión a Azure)
+
 @app.get("/", tags=["Inicio"])
 def leer_inicio():
-    return {"message": "Bienvenido a la API de Precios del Combustible en Chile. Usa /docs para ver la documentación."}
+    """
+    Página de bienvenida de la API.
+    """
+    return {"mensaje": "Bienvenido a la API de Combustibles. Ve a /docs para la documentación interactiva."}
 
-#segundo endpoint: obtener todas las comunas
-@app.get("/api/comunas", response_model=List[str], tags=["Comunas"])
+@app.get("/api/comunas", response_model=List[str], tags=["Estaciones"])
 def obtener_comunas(db: Session = Depends(get_db)):
     """
-    Obtiene una lista de todas las comunas disponibles en la base de datos.
+    Obtiene una lista única de todas las comunas con estaciones de servicio.
     """
     comunas_query = db.query(Estacion.comuna).distinct().order_by(Estacion.comuna).all()
+    # Convertimos la lista de tuplas que nos da la BD a una lista simple de strings
     return [comuna[0] for comuna in comunas_query]
 
-#endpoint para obtener todas las estaciones de servicio por comuna
 @app.get("/api/estaciones/comuna/{nombre_comuna}", response_model=List[EstacionBasicoRespuesta], tags=["Estaciones"])
 def obtener_estaciones_por_comuna(nombre_comuna: str, db: Session = Depends(get_db)):
     """
-    Obtiene una lista de estaciones de servicio en una comuna específica.
+    Obtiene una lista de estaciones de servicio para una comuna específica.
     """
     estaciones = db.query(Estacion).filter(Estacion.comuna == nombre_comuna).order_by(Estacion.marca).all()
-
     if not estaciones:
-        raise HTTPException(status_code=404, detail="No se encontraron estaciones en esta comuna.")
-    
+        raise HTTPException(status_code=404, detail=f"No se encontraron estaciones para la comuna: {nombre_comuna}")
     return estaciones
 
-#endpoint para obtener detalles de una estación de servicio
 @app.get("/api/estaciones/codigo/{codigo_estacion}", response_model=EstacionCompletoRespuesta, tags=["Estaciones"])
 def obtener_estacion_por_codigo(codigo_estacion: str, db: Session = Depends(get_db)):
     """
-    Obtiene los detalles de una estación de servicio por su código.
+    Obtiene la información detallada y los precios de una estación específica por su código.
     """
     estacion = db.query(Estacion).filter(Estacion.codigo == codigo_estacion).first()
-
     if not estacion:
-        raise HTTPException(status_code=404, detail="Estación no encontrada.")
-
+        raise HTTPException(status_code=404, detail=f"No se encontró la estación con el código: {codigo_estacion}")
     return estacion

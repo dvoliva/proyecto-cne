@@ -11,7 +11,6 @@ from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
 from dotenv import load_dotenv
 
-
 #conectarse a la base de datos en Azure
 load_dotenv()
 

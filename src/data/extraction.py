@@ -91,91 +91,95 @@ def obtener_estaciones(token: str):
 
 def procesar_y_guardar_datos(estaciones_api: list):
     """
-    procesa la lista de estaciones de la API y las guarda en la base de datos
+    Procesa y guarda los datos de las estaciones de forma masiva para
+    un rendimiento óptimo, manejando duplicados en el origen.
     """
     if not estaciones_api:
         print("No hay estaciones para procesar.")
         return
-    
-    #pedir una sesion a la fábrica de sesiones
+
     db = SessionLocal()
-    print("Procesando y guardando estaciones...")
+    print("Iniciando procesamiento masivo de datos...")
 
     try:
-        total_estaciones = len(estaciones_api)
-        estaciones_nuevas = 0
-        estaciones_actualizadas = 0
+        print("1/4 - Obteniendo estaciones existentes desde la base de datos...")
+        codigos_en_db = {estacion.codigo for estacion in db.query(Estacion.codigo).all()}
+        print(f" -> Se encontraron {len(codigos_en_db)} estaciones en la BD.")
+
+        print("2/4 - Preparando y depurando los datos para la carga masiva...")
+        estaciones_a_crear = []
+        estaciones_a_actualizar = []
+        precios_a_crear = []
         
-        for i, estacion_data in enumerate(estaciones_api):
-            #imprimir progreso
-            print(f"procesando {i+1}/{total_estaciones}: {estacion_data.get('distribuidor', {}).get('marca')} - {estacion_data.get('ubicacion', {}).get('comuna')}...", end='\r')
+        #el set evita que procesemos códigos duplicados que vengan de la API.
+        codigos_procesados_en_lote = set()
 
-            # Función para convertir coordenadas con manejo de comas ya que arrojaba error.
-            def convertir_coordenada(valor):
-                if valor is None:
-                    return None
-                try:
-                    return float(str(valor).replace(',', '.'))
-                except (ValueError, TypeError):
-                    return None
-
-            #verificar si la estacion ya existe
+        for estacion_data in estaciones_api:
             codigo_estacion = estacion_data.get('codigo')
-            estacion_existente = db.query(Estacion).filter(Estacion.codigo == codigo_estacion).first()
 
-            if not estacion_existente:
-                #si no existe, crear una nueva estación
-                nueva_estacion = Estacion(
-                    codigo=estacion_data.get('codigo'),
-                    razon_social=estacion_data.get('razon_social'),
-                    marca=estacion_data.get('distribuidor', {}).get('marca'),
-                    direccion=estacion_data.get('ubicacion', {}).get('direccion'),
-                    comuna=estacion_data.get('ubicacion', {}).get('nombre_comuna'),
-                    region=estacion_data.get('ubicacion', {}).get('nombre_region'),
-                    latitud=convertir_coordenada(estacion_data.get('ubicacion', {}).get('latitud')),
-                    longitud=convertir_coordenada(estacion_data.get('ubicacion', {}).get('longitud'))
-                )
-                db.add(nueva_estacion)
-                db.flush()  # Hacer flush para obtener el ID sin commit completo
-                estacion_para_precios = nueva_estacion
-                estaciones_nuevas += 1
+            #si ya hemos visto este código en este mismo lote, se ignora y continua
+            if not codigo_estacion or codigo_estacion in codigos_procesados_en_lote:
+                continue
+            
+            #marco el código como procesado para este lote
+            codigos_procesados_en_lote.add(codigo_estacion)
+            
+            def convertir_coordenada(valor):
+                if valor is None: return None
+                try: return float(str(valor).replace(',', '.'))
+                except (ValueError, TypeError): return None
+            
+            datos_limpios = {
+                'codigo': codigo_estacion,
+                'razon_social': estacion_data.get('razon_social'),
+                'marca': estacion_data.get('distribuidor', {}).get('marca'),
+                'direccion': estacion_data.get('ubicacion', {}).get('direccion'),
+                'comuna': estacion_data.get('ubicacion', {}).get('nombre_comuna'),
+                'region': estacion_data.get('ubicacion', {}).get('nombre_region'),
+                'latitud': convertir_coordenada(estacion_data.get('ubicacion', {}).get('latitud')),
+                'longitud': convertir_coordenada(estacion_data.get('ubicacion', {}).get('longitud'))
+            }
+
+            if codigo_estacion not in codigos_en_db:
+                estaciones_a_crear.append(datos_limpios)
             else:
-                #si ya existe, se actualiza la estación
-                estacion_existente.razon_social = estacion_data.get('razon_social')
-                estacion_existente.marca = estacion_data.get('distribuidor', {}).get('marca')
-                estacion_existente.direccion = estacion_data.get('ubicacion', {}).get('direccion')
-                estacion_existente.comuna = estacion_data.get('ubicacion', {}).get('nombre_comuna')
-                estacion_existente.region = estacion_data.get('ubicacion', {}).get('nombre_region')
-                estacion_existente.latitud = convertir_coordenada(estacion_data.get('ubicacion', {}).get('latitud'))
-                estacion_existente.longitud = convertir_coordenada(estacion_data.get('ubicacion', {}).get('longitud'))
-                
-                # Eliminar precios antiguos
-                db.query(Precio).filter(Precio.estacion_codigo == codigo_estacion).delete()
-                estacion_para_precios = estacion_existente
-                estaciones_actualizadas += 1
+                estaciones_a_actualizar.append(datos_limpios)
 
-            #procesamos los precios para la estación(nueva o existente)
             precios_data = estacion_data.get('precios', {})
             for tipo_comb, info_precio in precios_data.items():
                 fecha_str = f'{info_precio.get("fecha_actualizacion")} {info_precio.get("hora_actualizacion")}'
                 fecha_obj = datetime.strptime(fecha_str, '%Y-%m-%d %H:%M:%S')
+                precios_a_crear.append({
+                    'tipo_combustible': tipo_comb,
+                    'precio_valor': int(float(info_precio.get('precio', 0).replace(',', '.'))),
+                    'fecha_actualizacion': fecha_obj,
+                    'estacion_codigo': codigo_estacion
+                })
+        
+        print(f" -> Datos depurados: {len(estaciones_a_crear)} estaciones nuevas, {len(estaciones_a_actualizar)} para actualizar.")
 
-                nuevo_precio = Precio(
-                    tipo_combustible=tipo_comb,
-                    precio_valor=int(float(info_precio.get('precio',0).replace(',','.'))),
-                    fecha_actualizacion=fecha_obj,
-                    estacion = estacion_para_precios
-                )
-                db.add(nuevo_precio)
+        if estaciones_a_actualizar:
+            print("3/4 - Actualizando estaciones existentes y borrando precios antiguos...")
+            codigos_a_actualizar = [est['codigo'] for est in estaciones_a_actualizar]
+            db.query(Precio).filter(Precio.estacion_codigo.in_(codigos_a_actualizar)).delete(synchronize_session=False)
+            db.bulk_update_mappings(Estacion, estaciones_a_actualizar)
 
-        #al final del bucle, se confirman los cambios a la vez
+        if estaciones_a_crear:
+            print("3/4 - Insertando nuevas estaciones...")
+            db.bulk_insert_mappings(Estacion, estaciones_a_crear)
+
+        if precios_a_crear:
+            print("4/4 - Insertando todos los registros de precios...")
+            db.bulk_insert_mappings(Precio, precios_a_crear)
+
+        print("Confirmando todos los cambios en la base de datos...")
         db.commit()
-        print(f"\nProcesamiento completado:")
-        print(f"- Estaciones nuevas: {estaciones_nuevas}")
-        print(f"- Estaciones actualizadas: {estaciones_actualizadas}")
-        print(f"- Total procesadas: {total_estaciones}")
+        print("\n¡Procesamiento masivo completado exitosamente!")
+        print(f"- Estaciones nuevas: {len(estaciones_a_crear)}")
+        print(f"- Estaciones actualizadas: {len(estaciones_a_actualizar)}")
+
     except Exception as e:
-        print(f"Error al procesar y guardar datos: {e}")
+        print(f"\n Error durante el procesamiento masivo: {e}")
         db.rollback()
     finally:
         db.close()
